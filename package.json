@@ -6,7 +6,7 @@
     "dev": "astro dev",
     "start": "astro dev",
     "check": "astro check",
-    "build": "node scripts/fetch-comments.js && astro build && pagefind --site dist",  //This is main important part, where it tells Netlify to run the fetch-comments.js script before building the site.
+    "build": "node scripts/fetch-comments.js && astro build && pagefind --site dist",  //This is main important part, where it tells Netlify to run the fetch-comments.js script before building the site. You can copy this line without my comment//
     "preview": "astro preview",
     "astro": "astro",
     "type-check": "tsc --noEmit --isolatedDeclarations",
