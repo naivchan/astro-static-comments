@@ -1,0 +1,30 @@
+name: Fetch and Save Mastodon Comments
+
+on:
+  workflow_dispatch: # Allows you to run this manually
+  schedule:
+    - cron: '0 0 * * 0' # Runs at 00:00 every Sunday
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # Important: allows the bot to save files to your repo
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Fetch Comments
+        run: node scripts/fetch-comments.js
+
+      - name: Commit and Push changes
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add src/data/comments/*.json
+          git commit -m "chore: update mastodon comments [skip ci]" || echo "No changes to commit"
+          git push
