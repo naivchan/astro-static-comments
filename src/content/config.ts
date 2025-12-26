@@ -12,7 +12,7 @@ const postsCollection = defineCollection({
 		category: z.string().optional().nullable().default(""),
 		lang: z.string().optional().default(""),
 		mastodon_id: z.string().optional(), // Add these two lines so Astro knows you have additional frontmatter
-		instance_url: z.string().optional(), 
+		mastodon_instance: z.string().optional(), 
 
 		/* For internal use */
 		prevTitle: z.string().default(""),
