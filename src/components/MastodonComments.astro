@@ -1,0 +1,179 @@
+---
+// src/components/MastodonComments.astro
+import fs from 'node:fs';
+import path from 'node:path';
+import { Icon } from "astro-icon/components"; // Add this if using astro-icon
+
+interface Props {
+  slug: string;
+  statusId: string;
+  instanceUrl: string;
+}
+
+const { slug, statusId, instanceUrl } = Astro.props;
+
+// 1. Initialize variables
+let comments = [];
+let stats = { favorites_count: 0, reblogs_count: 0, replies_count: 0 };
+
+// 2. Load fallback data from local JSON first
+const filePath = path.join(process.cwd(), 'src/data/comments', `${slug}.json`);
+if (fs.existsSync(filePath)) {
+  try {
+    const fileContent = fs.readFileSync(filePath, 'utf-8');
+    comments = JSON.parse(fileContent);
+    // Note: If you want to save stats in JSON too, you'd load them here
+  } catch (err) {
+    console.error(`Error reading local cache for ${slug}:`, err);
+  }
+}
+
+// 3. Try to get fresh data from the API
+try {
+  const [contextRes, statusRes] = await Promise.all([
+    fetch(`https://${instanceUrl}/api/v1/statuses/${statusId}/context`),
+    fetch(`https://${instanceUrl}/api/v1/statuses/${statusId}`)
+  ]);
+
+  if (contextRes.ok && statusRes.ok) {
+    const contextData = await contextRes.json();
+    const statusData = await statusRes.json();
+
+    // Only overwrite if the fetch was successful
+    comments = contextData.descendants || [];
+    stats = {
+      favorites_count: statusData.favorites_count,
+      reblogs_count: statusData.reblogs_count,
+      replies_count: statusData.replies_count
+    };
+  }
+} catch (e) {
+  console.error("Mastodon Fetch Error - falling back to local JSON:", e);
+  // We don't need to do anything here; 'comments' still holds the JSON data
+}
+
+const formatDate = (dateString: string) => {
+  return new Date(dateString).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
+---
+
+<div class="mastodon-comments-container mt-10">
+  <div class="flex flex-col gap-4 mb-6">
+    <div class="flex items-center gap-4">
+      <div class="h-1 w-8 rounded-full bg-[var(--primary)]"></div>
+      <h2 class="text-2xl font-bold text-90">Comments</h2>
+      <div class="flex-grow border-b border-dashed border-black/10 dark:border-white/10"></div>
+    </div>
+
+<div class="flex items-start gap-3 p-4 mb-2 rounded-xl bg-black/[0.03] dark:bg-white/[0.05] text-50 text-sm italic border border-black/5 dark:border-white/5">
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="flex-shrink-0 mt-0.5 opacity-70"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+      <p>
+        Comments are fetched from the Fediverse. You can join the conversation by replying to 
+        <a href={`https://${instanceUrl}/@navi/${statusId}`} class="text-[var(--primary)] hover:underline not-italic font-bold"> this post</a> 
+        on Mastodon. New replies will appear here after the next site rebuild. If you don't have a fedi acount, you can send me your comment <a href={`https://pomnavi.net/#contact`} class="text-[var(--primary)] hover:underline not-italic font-bold"> here</a>.
+      </p>
+    </div>
+    
+    <div class="flex gap-6 text-sm text-50 px-2">
+      <span class="flex items-center gap-1.5 hover:text-[var(--primary)] transition cursor-default">
+        <span class="i-material-symbols-chat-outline text-lg"></span> 
+        <strong>{stats.replies_count}</strong> Replies
+      </span>
+      <span class="flex items-center gap-1.5 hover:text-green-500 transition cursor-default">
+        <span class="i-material-symbols-repeat text-lg"></span> 
+        <strong>{stats.reblogs_count}</strong> Boosts
+      </span>
+      <span class="flex items-center gap-1.5 hover:text-red-500 transition cursor-default">
+        <span class="i-material-symbols-favorite-outline text-lg"></span> 
+        <strong>{stats.favorites_count}</strong> Likes
+      </span>
+    </div>
+  </div>
+
+  <div class="space-y-4">
+    {comments.length > 0 ? (
+      comments.map((comment) => (
+        <div class="comment-card p-5 rounded-[var(--radius-large)] bg-black/[0.03] dark:bg-white/[0.05] border border-black/5 dark:border-white/5 shadow-sm">
+          <header class="flex justify-between items-start mb-3">
+            <div class="flex items-center gap-3">
+              <img 
+                src={comment.account.avatar_static} 
+                class="w-10 h-10 rounded-xl border border-black/10 dark:border-white/10" 
+                alt="" 
+              />
+              <div class="flex flex-col">
+                <a href={comment.account.url} target="_blank" class="font-bold text-90 hover:text-[var(--primary)] transition">
+                  {comment.account.display_name}
+                </a>
+                <span class="text-[0.75rem] text-50">@{comment.account.acct}</span>
+              </div>
+            </div>
+            <a href={comment.url} target="_blank" class="text-[0.75rem] text-30 hover:underline">
+              {formatDate(comment.created_at)}
+            </a>
+          </header>
+
+          <div class="prose-sm text-70 break-words mastodon-content ml-13" set:html={comment.content} />
+          
+          { (comment.favorites_count > 0 || comment.reblogs_count > 0) && (
+            <div class="mt-3 ml-13 flex gap-4 text-[0.7rem] text-30">
+               {comment.reblogs_count > 0 && <span class="flex items-center gap-1">🔄 {comment.reblogs_count}</span>}
+               {comment.favorites_count > 0 && <span class="flex items-center gap-1">❤️ {comment.favorites_count}</span>}
+            </div>
+          )}
+        </div>
+      ))
+    ) : (
+      <div class="text-center py-10 rounded-[var(--radius-large)] border-2 border-dashed border-black/5 dark:border-white/5 text-50">
+         No comments yet.
+      </div>
+    )}
+  </div>
+
+  <div class="mt-8 flex justify-center">
+    <a href={`https://${instanceUrl}/@navi/${statusId}`} target="_blank" 
+       class="btn-regular px-8 py-3 rounded-xl bg-[var(--primary)] text-white font-bold transition hover:scale-105 active:scale-95 shadow-lg shadow-[var(--primary)]/20">
+      Join the conversation
+    </a>
+  </div>
+</div>
+
+<style is:global>
+  /* 1. Target the container we defined for the comment content */
+  .mastodon-content {
+    /* Uses Fuwari's variable for 70% opacity text, which auto-switches in dark mode */
+    color: var(--tw-text-opacity); 
+  }
+
+  /* 2. Style the paragraphs within the injected HTML */
+  .mastodon-content p {
+    margin-bottom: 0.75rem;
+    line-height: 1.6;
+  }
+  .mastodon-content p:last-child {
+    margin-bottom: 0;
+  }
+
+  /* 3. Style the links to use the theme's primary color */
+  .mastodon-content a {
+    color: var(--primary);
+    text-decoration: none;
+    transition: opacity 0.2s;
+  }
+
+  .mastodon-content a:hover {
+    text-decoration: underline;
+    opacity: 0.8;
+  }
+
+  /* 4. Hide Mastodon's invisible protocol spans (like the 'https://' part of links) */
+  .mastodon-content .invisible {
+    display: none;
+  }
+</style>
