@@ -28,7 +28,7 @@ const { Content, headings } = await entry.render();
 
 // [2] Extract Mastodon ID from frontmatter
 const mastodon_id = entry.data.mastodon_id; 
-const instance_url = entry.data.mastodon_instance || "sakurajima.moe"; // Change this to your isntance and/or in the front matter of the post.
+const instance_url = entry.data.mastodon_instance || "sakurajima.moe"; // Change this to your instance and/or in the front matter of the post.
 
 const { remarkPluginFrontmatter } = await entry.render();
 
