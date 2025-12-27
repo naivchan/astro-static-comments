@@ -129,6 +129,31 @@ const formatDate = (dateString: string) => {
 
           <div class="prose-sm text-70 break-words mastodon-content ml-13" set:html={comment.content} />
 
+{comment.media_attachments && comment.media_attachments.length > 0 && (
+  <div class="mt-3 ml-13 flex flex-wrap gap-2">
+    {comment.media_attachments.map((media) => (
+      media.type === 'image' && (
+        <a 
+          href={media.url} 
+          target="_blank" 
+          rel="noopener noreferrer" 
+          class="group relative inline-block overflow-hidden rounded-lg border border-black/10 dark:border-white/10"
+        >
+          <img 
+            src={media.preview_url} 
+            alt={media.description || "Mastodon attachment"} 
+            class="max-h-64 w-auto object-cover transition-transform duration-300 group-hover:scale-105"
+            loading="lazy"
+          />
+          {media.description && (
+            <div class="sr-only">{media.description}</div>
+          )}
+        </a>
+      )
+    ))}
+  </div>
+)}
+
     { (comment.favourites_count > 0 || comment.reblogs_count > 0) && (
   <div class="mt-3 ml-13 flex gap-4 text-[0.7rem] text-30">
      {comment.reblogs_count > 0 && (
