@@ -2,8 +2,8 @@ name: Fetch and Save Mastodon Comments
 
 on:
   workflow_dispatch: # Allows you to run this manually
-  schedule:
-    - cron: '0 0 * * 0' # Runs at 00:00 every Sunday
+  # schedule: Remove the hash here too to run on a schedule. 
+  #  - cron: '0 0 * * 0' # Runs at 00:00 every Sunday, Change this to suit your schedule. 
 
 jobs:
   fetch:
