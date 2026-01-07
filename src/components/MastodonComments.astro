@@ -120,29 +120,42 @@ const formatDate = (dateString: string) => {
       allComments.map((comment) => (
         <div class="comment-card p-5 rounded-[var(--radius-large)] bg-black/[0.03] dark:bg-white/[0.05] border border-black/5 dark:border-white/5 shadow-sm">
           <header class="flex justify-between items-start mb-3">
-            <div class="flex items-center gap-3">
-              <img 
-                src={comment.account.avatar_static} 
-                class="w-10 h-10 rounded-xl border border-black/10 dark:border-white/10" 
-                alt="" 
-              />
-              <div class="flex flex-col">
-                <div class="flex items-center gap-2">
-                  <a href={comment.account.url} target="_blank" class="font-bold text-90 hover:text-[var(--primary)] transition">
-                    {comment.account.display_name}
-                  </a>
-                  {comment.account.username === "navi" && (
-                    <span class="text-[0.6rem] px-1.5 py-0.5 rounded-md bg-[var(--primary)] text-white font-bold uppercase tracking-wider">Author</span>
-                  )}
+              <div class="flex items-center gap-3">
+                <img 
+                  src={comment.account.avatar_static} 
+                  class="w-10 h-10 rounded-xl border border-black/10 dark:border-white/10" 
+                  alt="" 
+                />
+                <div class="flex flex-col">
+                  <div class="flex items-center gap-2">
+                    <a href={comment.account.url} target="_blank" class="font-bold text-90 hover:text-[var(--primary)] transition">
+                      {comment.account.display_name}
+                    </a>
+                    
+                    {/* Author Badge */}
+                    {comment.account.username === "navi" && (
+                      <span class="text-[0.6rem] px-1.5 py-0.5 rounded-md bg-[var(--primary)] text-white font-bold uppercase tracking-wider">Author</span>
+                    )}
+                    
+                    {/* Manual Icon */}
+                    {comment.is_manual && (
+                      <div title="Manual Entry" class="text-30 opacity-60 flex items-center">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path>
+                          <circle cx="12" cy="7" r="4"></circle>
+                        </svg>
+                      </div>
+                    )}
+                  </div> { /* End of Name + Badges row */ }
+                  <span class="text-[0.75rem] text-50">@{comment.account.acct}</span>
                 </div>
-                <span class="text-[0.75rem] text-50">@{comment.account.acct}</span>
-              </div>
-            </div>
-            
-            <a href={comment.url} target="_blank" class="text-[0.75rem] text-30 hover:underline">
-              {formatDate(comment.created_at)}
-            </a>
-          </header>
+              </div> { /* End of Left-Side container */ }
+              
+              { /* This link will now be pushed to the right side */ }
+              <a href={comment.url} target="_blank" class="text-[0.75rem] text-30 hover:underline shrink-0">
+                {formatDate(comment.created_at)}
+              </a>
+            </header>
 
           <div class="prose-sm text-70 break-words mastodon-content ml-13" set:html={comment.content} />
 
