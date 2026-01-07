@@ -1,5 +1,7 @@
 This is a folder to store manual comments that I enter from other mastodon posts or received through the contact form. 
 
+WHen you create the json file, it needs to match the post slug (all lowercase and dashes instead of spaces).
+
 To add manual comments that blend perfectly with your Mastodon-sourced ones, your JSON file must follow the specific structure expected by the component.
 
 Create a file at src/data/manual-comments/your-post-slug.json and use this template:
