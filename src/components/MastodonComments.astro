@@ -13,22 +13,34 @@ interface Props {
 const { slug, statusId, instanceUrl } = Astro.props;
 
 // 1. Initialize variables
-let comments = [];
+let mastodonComments = [];
+let manualComments = [];
 let stats = { favorites_count: 0, reblogs_count: 0, replies_count: 0 };
 
-// 2. Load fallback data from local JSON first
-const filePath = path.join(process.cwd(), 'src/data/comments', `${slug}.json`);
-if (fs.existsSync(filePath)) {
+const mastodonFilePath = path.join(process.cwd(), 'src/data/comments', `${slug}.json`);
+const manualFilePath = path.join(process.cwd(), 'src/data/manual-comments', `${slug}.json`);
+
+// 2. Load Mastodon data from local JSON cache
+if (fs.existsSync(mastodonFilePath)) {
   try {
-    const fileContent = fs.readFileSync(filePath, 'utf-8');
-    comments = JSON.parse(fileContent);
-    // Note: If you want to save stats in JSON too, you'd load them here
+    const fileContent = fs.readFileSync(mastodonFilePath, 'utf-8');
+    mastodonComments = JSON.parse(fileContent);
   } catch (err) {
-    console.error(`Error reading local cache for ${slug}:`, err);
+    console.error(`Error reading Mastodon cache for ${slug}:`, err);
   }
 }
 
-// 3. Try to get fresh data from the API
+// 3. Load Manual comments (These will never be overwritten by the script)
+if (fs.existsSync(manualFilePath)) {
+  try {
+    const manualContent = fs.readFileSync(manualFilePath, 'utf-8');
+    manualComments = JSON.parse(manualContent);
+  } catch (err) {
+    console.error(`Error reading manual comments for ${slug}:`, err);
+  }
+}
+
+// 4. Try to get fresh data from the API (Resilience/Live Fetch)
 try {
   const [contextRes, statusRes] = await Promise.all([
     fetch(`https://${instanceUrl}/api/v1/statuses/${statusId}/context`),
@@ -39,19 +51,23 @@ try {
     const contextData = await contextRes.json();
     const statusData = await statusRes.json();
 
-    // Only overwrite if the fetch was successful
-    comments = contextData.descendants || [];
+    mastodonComments = contextData.descendants || [];
     stats = {
-      // Add the 'u' here!
       favorites_count: statusData.favourites_count || statusData.favorites_count || 0,
       reblogs_count: statusData.reblogs_count || 0,
       replies_count: statusData.replies_count || 0
     };
   }
 } catch (e) {
-  console.error("Mastodon Fetch Error - falling back to local JSON:", e);
-  // We don't need to do anything here; 'comments' still holds the JSON data
+  console.error("Mastodon Fetch Error - using local JSON:", e);
 }
+
+// 5. MERGE AND SORT ALL COMMENTS
+// This combines both sources and sorts them so the oldest is first (typical thread order)
+// Change to (b - a) if you want newest at the top
+const allComments = [...manualComments, ...mastodonComments].sort((a, b) => 
+  new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+);
 
 const formatDate = (dateString: string) => {
   return new Date(dateString).toLocaleDateString("en-US", {
@@ -72,35 +88,36 @@ const formatDate = (dateString: string) => {
       <div class="flex-grow border-b border-dashed border-black/10 dark:border-white/10"></div>
     </div>
 
-<div class="flex items-start gap-3 p-4 mb-2 rounded-xl bg-black/[0.03] dark:bg-white/[0.05] text-50 text-sm italic border border-black/5 dark:border-white/5">
+    <div class="flex items-start gap-3 p-4 mb-2 rounded-xl bg-black/[0.03] dark:bg-white/[0.05] text-50 text-sm italic border border-black/5 dark:border-white/5">
       <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="flex-shrink-0 mt-0.5 opacity-70"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
       <p>
         Comments are fetched from the Fediverse. You can join the conversation by replying to 
         <a href={`https://${instanceUrl}/@navi/${statusId}`} class="text-[var(--primary)] hover:underline not-italic font-bold"> this post</a> 
-        on Mastodon. New replies will appear here after the next site rebuild. If you don't have a fedi acount, you can send me your comment <a href={`https://pomnavi.net/#contact`} class="text-[var(--primary)] hover:underline not-italic font-bold"> here</a>.
+        on Mastodon. New replies will appear here after the next site rebuild. If you don't have a fedi account, you can send me your comment <a href={`https://pomnavi.net/#contact`} class="text-[var(--primary)] hover:underline not-italic font-bold"> here</a>.
       </p>
     </div>
     
     <div class="flex gap-6 text-sm text-50 px-2">
-  <span class="flex items-center gap-1.5 hover:text-[var(--primary)] transition cursor-default">
-    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
-    <strong>{stats.replies_count}</strong> Replies
-  </span>
+      <span class="flex items-center gap-1.5 hover:text-[var(--primary)] transition cursor-default">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+        <strong>{stats.replies_count}</strong> Replies
+      </span>
 
-  <span class="flex items-center gap-1.5 hover:text-green-500 transition cursor-default">
-    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg>
-    <strong>{stats.reblogs_count}</strong> Boosts
-  </span>
+      <span class="flex items-center gap-1.5 hover:text-green-500 transition cursor-default">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg>
+        <strong>{stats.reblogs_count}</strong> Boosts
+      </span>
 
-  <span class="flex items-center gap-1.5 hover:text-red-500 transition cursor-default">
-    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
-    <strong>{stats.favorites_count || stats.favourites_count}</strong> Likes
-  </span>
-</div>
+      <span class="flex items-center gap-1.5 hover:text-red-500 transition cursor-default">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
+        <strong>{stats.favorites_count || stats.favourites_count}</strong> Likes
+      </span>
+    </div>
+  </div>
 
   <div class="space-y-4">
-    {comments.length > 0 ? (
-      comments.map((comment) => (
+    {allComments.length > 0 ? (
+      allComments.map((comment) => (
         <div class="comment-card p-5 rounded-[var(--radius-large)] bg-black/[0.03] dark:bg-white/[0.05] border border-black/5 dark:border-white/5 shadow-sm">
           <header class="flex justify-between items-start mb-3">
             <div class="flex items-center gap-3">
@@ -110,18 +127,18 @@ const formatDate = (dateString: string) => {
                 alt="" 
               />
               <div class="flex flex-col">
-                <a href={comment.account.url} target="_blank" class="font-bold text-90 hover:text-[var(--primary)] transition">
-                  {comment.account.display_name}
-                </a>
-
-         {/* AUTHOR BADGE LOGIC */}
-          {comment.account.username === "navi" && (
-          <span class="text-[0.6rem] px-1.5 py-0.5 rounded-md bg-[var(--primary)] text-white font-bold uppercase tracking-wider">Author</span>
-                )}
-        </div>
-        <span class="text-[0.75rem] text-50">@{comment.account.acct}</span>
-    </div>
-               
+                <div class="flex items-center gap-2">
+                  <a href={comment.account.url} target="_blank" class="font-bold text-90 hover:text-[var(--primary)] transition">
+                    {comment.account.display_name}
+                  </a>
+                  {comment.account.username === "navi" && (
+                    <span class="text-[0.6rem] px-1.5 py-0.5 rounded-md bg-[var(--primary)] text-white font-bold uppercase tracking-wider">Author</span>
+                  )}
+                </div>
+                <span class="text-[0.75rem] text-50">@{comment.account.acct}</span>
+              </div>
+            </div>
+            
             <a href={comment.url} target="_blank" class="text-[0.75rem] text-30 hover:underline">
               {formatDate(comment.created_at)}
             </a>
@@ -129,52 +146,50 @@ const formatDate = (dateString: string) => {
 
           <div class="prose-sm text-70 break-words mastodon-content ml-13" set:html={comment.content} />
 
-{comment.media_attachments && comment.media_attachments.length > 0 && (
-  <div class="mt-3 ml-13 flex flex-wrap gap-2">
-    {comment.media_attachments.map((media) => (
-      media.type === 'image' && (
-        <a 
-          href={media.url} 
-          target="_blank" 
-          rel="noopener noreferrer" 
-          class="group relative inline-block overflow-hidden rounded-lg border border-black/10 dark:border-white/10"
-        >
-          <img 
-            src={media.preview_url} 
-            alt={media.description || "Mastodon attachment"} 
-            class="max-h-64 w-auto object-cover transition-transform duration-300 group-hover:scale-105"
-            loading="lazy"
-          />
-          {media.description && (
-            <div class="sr-only">{media.description}</div>
+          {comment.media_attachments && comment.media_attachments.length > 0 && (
+            <div class="mt-3 ml-13 flex flex-wrap gap-2">
+              {comment.media_attachments.map((media) => (
+                media.type === 'image' && (
+                  <a 
+                    href={media.url} 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    class="group relative inline-block overflow-hidden rounded-lg border border-black/10 dark:border-white/10"
+                  >
+                    <img 
+                      src={media.preview_url} 
+                      alt={media.description || "Mastodon attachment"} 
+                      class="max-h-64 w-auto object-cover transition-transform duration-300 group-hover:scale-105"
+                      loading="lazy"
+                    />
+                    {media.description && <div class="sr-only">{media.description}</div>}
+                  </a>
+                )
+              ))}
+            </div>
           )}
-        </a>
-      )
-    ))}
-  </div>
-)}
 
-    { (comment.favourites_count > 0 || comment.reblogs_count > 0) && (
-  <div class="mt-3 ml-13 flex gap-4 text-[0.7rem] text-30">
-     {comment.reblogs_count > 0 && (
-       <span class="flex items-center gap-1">
-         <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg>
-         {comment.reblogs_count}
-       </span>
-     )}
-     {comment.favourites_count > 0 && (
-       <span class="flex items-center gap-1">
-         <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
-         {comment.favourites_count}
-       </span>
-     )}
-  </div>
-)}
+          {(comment.favourites_count > 0 || comment.reblogs_count > 0) && (
+            <div class="mt-3 ml-13 flex gap-4 text-[0.7rem] text-30">
+              {comment.reblogs_count > 0 && (
+                <span class="flex items-center gap-1">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg>
+                  {comment.reblogs_count}
+                </span>
+              )}
+              {(comment.favourites_count > 0 || comment.favorites_count > 0) && (
+                <span class="flex items-center gap-1">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
+                  {comment.favourites_count || comment.favorites_count}
+                </span>
+              )}
+            </div>
+          )}
         </div>
       ))
     ) : (
       <div class="text-center py-10 rounded-[var(--radius-large)] border-2 border-dashed border-black/5 dark:border-white/5 text-50">
-         No comments yet.
+          No comments yet.
       </div>
     )}
   </div>
@@ -187,55 +202,15 @@ const formatDate = (dateString: string) => {
   </div>
 </div>
 
+
 <style is:global>
-  /* 1. Force the content to inherit the color of its parent */
-  .mastodon-content {
-    /* text-70 in Tailwind usually sets the color to a theme variable */
-    /* We ensure all children inherit this color */
-    color: inherit; 
-  }
-
-  /* 2. Style the internal Mastodon tags */
-  .mastodon-content p {
-    margin-bottom: 0.75rem;
-    line-height: 1.6;
-    /* This ensures that even if Mastodon sends weird HTML, the color follows the theme */
-    color: currentColor; 
-  }
-  
-  .mastodon-content p:last-child {
-    margin-bottom: 0;
-  }
-
-  /* 3. Specifically target the links */
-  .mastodon-content a {
-    color: var(--primary) !important;
-    text-decoration: none;
-    transition: opacity 0.2s;
-  }
-
-  .mastodon-content a:hover {
-    text-decoration: underline;
-    opacity: 0.8;
-  }
-
-  /* 4. Handle Mastodon's specific classes */
-  .mastodon-content .invisible {
-    display: none;
-  }
-  
-  .mastodon-content .ellipsis::after {
-    content: "...";
-  }
-
-  /* 5. The "Safety Net" for Dark Mode */
-  /* If Fuwari uses the 'dark' class on the html or body tag */
-  .dark .mastodon-content {
-    color: rgba(255, 255, 255, 0.7) !important;
-  }
-  
-  /* If Fuwari uses a data-theme attribute */
-  [data-theme='dark'] .mastodon-content {
-    color: rgba(255, 255, 255, 0.7) !important;
-  }
+  .mastodon-content { color: inherit; }
+  .mastodon-content p { margin-bottom: 0.75rem; line-height: 1.6; color: currentColor; }
+  .mastodon-content p:last-child { margin-bottom: 0; }
+  .mastodon-content a { color: var(--primary) !important; text-decoration: none; transition: opacity 0.2s; }
+  .mastodon-content a:hover { text-decoration: underline; opacity: 0.8; }
+  .mastodon-content .invisible { display: none; }
+  .mastodon-content .ellipsis::after { content: "..."; }
+  .dark .mastodon-content { color: rgba(255, 255, 255, 0.7) !important; }
+  [data-theme='dark'] .mastodon-content { color: rgba(255, 255, 255, 0.7) !important; }
 </style>
