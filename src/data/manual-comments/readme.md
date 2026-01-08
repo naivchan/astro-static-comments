@@ -7,7 +7,7 @@ To add manual comments that blend perfectly with your Mastodon-sourced ones, you
 Create a file at src/data/manual-comments/your-post-slug.json and use this template:
 JSON
 
-<code>
+```JSON
 [
   {
     "id": "manual-001",
@@ -26,7 +26,7 @@ JSON
     "media_attachments": []
   }
 ]
-</code>
+```
 
 Key Fields Explained:
 
