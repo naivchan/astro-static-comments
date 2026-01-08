@@ -12,8 +12,9 @@ You will probably need to modify the location and references based on how your t
 | src/components/MastodonComments.astro | Astro Template that displays the JSON content as HTML.  |
 | .github/workflows/fetch-comments.yml  | Github Action that runs fetch-comments.js once a week.|
 | src/data/comments/                    | The folder where your comments are saved permanently as JSON files that map to your blog posts.|
+| src/data/manual-comments              | The folder where you can add comments manually, in a JSON file |
 | src/pages/posts/[...slug].astro       | Update this so that the comments will load on each blog posts. If you use a different astro theme from me (I use Fuwari), you will probably have a different template you need to update. |
-| src/content/config.ts                 | Update this so that Astro knows you added new frontmatter sections
+| src/content/config.ts                 | Update this so that Astro knows you added new frontmatter sections |
 
 How it works
 1. The Data Source (Mastodon)
