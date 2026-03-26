@@ -14,27 +14,43 @@ async function fetchComments() {
     const filePath = path.join(CONTENT_DIR, file);
     const content = fs.readFileSync(filePath, 'utf-8');
     
-    // Simple regex to grab mastodon_id and instance from frontmatter without a library
-    const mastodonId = content.match(/mastodon_id:\s*["']?(\d+)["']?/)?.[1];
+    const mastodonId = content.match(/mastodon_id:\s*["']?([\w-]+)["']?/)?.[1];
     const instance = content.match(/mastodon_instance:\s*["']?([^"'\s]+)["']?/)?.[1];
     const slug = file.replace(/\.(md|mdoc)$/, '');
 
     if (mastodonId && instance) {
       console.log(`Fetching comments for: ${slug}`);
       try {
-        const response = await fetch(
-          `https://${instance}/api/v1/statuses/${mastodonId}/context`,
-          { headers: { 'User-Agent': 'NaviBlogBot/1.0' } }
-        );
+        // Fetch BOTH the thread and the original post status
+        const [contextRes, statusRes] = await Promise.all([
+          fetch(`https://${instance}/api/v1/statuses/${mastodonId}/context`, { headers: { 'User-Agent': 'NaviBlogBot/1.0' } }),
+          fetch(`https://${instance}/api/v1/statuses/${mastodonId}`, { headers: { 'User-Agent': 'NaviBlogBot/1.0' } })
+        ]);
 
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        if (!contextRes.ok || !statusRes.ok) throw new Error(`HTTP Error`);
 
-        const resData = await response.json();
+        const contextData = await contextRes.json();
+        const statusData = await statusRes.json();
+
+        // Bundle everything into one JSON object
+        const finalData = {
+          comments: contextData.descendants || [],
+          author: {
+            username: statusData.account.username,
+            url: statusData.url
+          },
+          stats: {
+            favorites_count: statusData.favourites_count || statusData.favorites_count || 0,
+            reblogs_count: statusData.reblogs_count || 0,
+            replies_count: statusData.replies_count || 0
+          }
+        };
+
         fs.writeFileSync(
           path.join(DATA_DIR, `${slug}.json`),
-          JSON.stringify(resData.descendants || [], null, 2)
+          JSON.stringify(finalData, null, 2)
         );
-        console.log(`✅ Saved ${slug}.json`);
+        console.log(`✅ Saved ${slug}.json (with stats & author)`);
       } catch (e) {
         console.error(`❌ Failed ${slug}: ${e.message}`);
       }
