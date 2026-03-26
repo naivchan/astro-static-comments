@@ -15,18 +15,23 @@ const { slug, statusId, instanceUrl } = Astro.props;
 // 1. Initialize variables
 let mastodonComments = [];
 let manualComments = [];
+let authorUsername = ""; // Move this here so it's available globally
 let stats = { favorites_count: 0, reblogs_count: 0, replies_count: 0 };
 
 const mastodonFilePath = path.join(process.cwd(), 'src/data/comments', `${slug}.json`);
 const manualFilePath = path.join(process.cwd(), 'src/data/manual-comments', `${slug}.json`);
 
-// 2. Load Mastodon data from local JSON cache
+// 2. Load from Local Cache (UPDATED FOR NEW JSON STRUCTURE)
 if (fs.existsSync(mastodonFilePath)) {
   try {
-    const fileContent = fs.readFileSync(mastodonFilePath, 'utf-8');
-    mastodonComments = JSON.parse(fileContent);
+    const cachedData = JSON.parse(fs.readFileSync(mastodonFilePath, 'utf-8'));
+    
+    // We now look inside the object for the data
+    mastodonComments = cachedData.comments || [];
+    authorUsername = cachedData.author?.username || ""; 
+    stats = cachedData.stats || stats;
   } catch (err) {
-    console.error(`Error reading Mastodon cache for ${slug}:`, err);
+    console.error(`Error reading Mastodon cache:`, err);
   }
 }
 
@@ -40,22 +45,19 @@ if (fs.existsSync(manualFilePath)) {
   }
 }
 
-// 4. Try to get fresh data from the API (Resilience/Live Fetch)
+// 4. Try to get fresh data from the API
 try {
   const [contextRes, statusRes] = await Promise.all([
     fetch(`https://${instanceUrl}/api/v1/statuses/${statusId}/context`),
     fetch(`https://${instanceUrl}/api/v1/statuses/${statusId}`)
   ]);
 
-  let authorUsername = ""; // Initialize a variable
-
   if (contextRes.ok && statusRes.ok) {
     const contextData = await contextRes.json();
     const statusData = await statusRes.json();
 
     mastodonComments = contextData.descendants || [];
-    // Get the username from the API response
-    authorUsername = statusData.account.username;
+    authorUsername = statusData.account.username; // Overwrites cache with live data
 
     stats = {
       favorites_count: statusData.favourites_count || statusData.favorites_count || 0,
