@@ -28,7 +28,7 @@ const { Content, headings } = await entry.render();
 
 // [2] Extract Mastodon ID from frontmatter
 const mastodon_id = entry.data.mastodon_id; 
-const instance_url = entry.data.mastodon_instance || "sakurajima.moe"; // Change this to your instance and/or in the front matter of the post.
+const instance_url = entry.data.mastodon_instance 
 
 const { remarkPluginFrontmatter } = await entry.render();
 
@@ -125,9 +125,9 @@ const jsonLd = {
 				{mastodon_id && (
     			<div class="mt-12 pt-8 ...">
         		<MastodonComments 
-            		statusId={mastodon_id} 
-            		instanceUrl={instance_url}
-					slug={entry.slug}   
+            		slug={entry.slug} 
+  					statusId={entry.data.mastodon_id} 
+  					instanceUrl={entry.data.mastodon_instance}
 				/>
     		</div>
 				)}
