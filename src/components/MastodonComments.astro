@@ -47,11 +47,16 @@ try {
     fetch(`https://${instanceUrl}/api/v1/statuses/${statusId}`)
   ]);
 
+  let authorUsername = ""; // Initialize a variable
+
   if (contextRes.ok && statusRes.ok) {
     const contextData = await contextRes.json();
     const statusData = await statusRes.json();
 
     mastodonComments = contextData.descendants || [];
+    // Get the username from the API response
+    authorUsername = statusData.account.username;
+
     stats = {
       favorites_count: statusData.favourites_count || statusData.favorites_count || 0,
       reblogs_count: statusData.reblogs_count || 0,
@@ -92,7 +97,7 @@ const formatDate = (dateString: string) => {
       <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="flex-shrink-0 mt-0.5 opacity-70"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
       <p>
         Comments are fetched from the Fediverse. You can join the conversation by replying to 
-        <a href={`https://${instanceUrl}/@YOURUSERNAME/${statusId}`} class="text-[var(--primary)] hover:underline not-italic font-bold"> this post</a> 
+        <a href={`https://${instanceUrl}/@${authorUsername}/${statusId}`} class="text-[var(--primary)] hover:underline not-italic font-bold"> this post</a> 
         on Mastodon. New replies will appear here after the next site rebuild. If you don't have a fedi account, you can send me your comment <a href={`https://pomnavi.net/#contact`} class="text-[var(--primary)] hover:underline not-italic font-bold"> here</a>.
       </p>
     </div>
@@ -133,7 +138,7 @@ const formatDate = (dateString: string) => {
                     </a>
                     
                     {/* Author Badge */}
-                    {comment.account.username === "navi" && (
+                    {comment.account.username === authorUsername && (
                       <span class="text-[0.6rem] px-1.5 py-0.5 rounded-md bg-[var(--primary)] text-white font-bold uppercase tracking-wider">Author</span>
                     )}
                     
@@ -208,7 +213,7 @@ const formatDate = (dateString: string) => {
   </div>
 
   <div class="mt-8 flex justify-center">
-    <a href={`https://${instanceUrl}/@YOURUSERNAME/${statusId}`} target="_blank" 
+    <a href={`https://${instanceUrl}/@${authorUsername}/${statusId}`} target="_blank" 
        class="btn-regular px-8 py-3 rounded-xl bg-[var(--primary)] text-white font-bold transition hover:scale-105 active:scale-95 shadow-lg shadow-[var(--primary)]/20">
       Join the conversation
     </a>
