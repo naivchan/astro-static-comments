@@ -1,0 +1,150 @@
+---
+// src/components/ManualCommentForm.astro
+interface Props {
+  slug: string;
+}
+
+const { slug } = Astro.props;
+---
+
+<div id="guestcomment" class="manual-comment-form-container mt-8 p-6 rounded-[var(--radius-large)] bg-black/[0.03] dark:bg-white/[0.05] border border-black/5 dark:border-white/5 shadow-sm">
+  <div class="flex items-center gap-3 mb-6">
+    <div class="p-2 rounded-lg bg-[var(--primary)] text-white">
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+    </div>
+    <h3 class="text-xl font-bold text-90">Post a Guest Comment</h3>
+  </div>
+
+  <form id="manual-comment-form" class="flex flex-col gap-4">
+    <div class="hidden" aria-hidden="true">
+      <input type="text" id="fax_number" name="fax_number" tabindex="-1" autocomplete="off" />
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div class="flex flex-col gap-1.5">
+        <label for="username" class="text-xs font-bold text-50 ml-1 uppercase">Name *</label>
+        <input type="text" id="username" required placeholder="Display Name" 
+          class="w-full px-4 py-2.5 rounded-xl bg-white/50 dark:bg-black/20 border border-black/10 dark:border-white/10 focus:border-[var(--primary)] outline-none transition text-90" />
+      </div>
+      <div class="flex flex-col gap-1.5">
+        <label for="userUrl" class="text-xs font-bold text-50 ml-1 uppercase">Website</label>
+        <input type="url" id="userUrl" placeholder="https://your-site.com" 
+          class="w-full px-4 py-2.5 rounded-xl bg-white/50 dark:bg-black/20 border border-black/10 dark:border-white/10 focus:border-[var(--primary)] outline-none transition text-90" />
+      </div>
+    </div>
+
+    <div id="reply-indicator" class="hidden flex items-center justify-between px-4 py-2 rounded-lg bg-[var(--primary)]/10 border border-[var(--primary)]/20 text-[var(--primary)] text-sm">
+      <span id="reply-text">Replying to comment...</span>
+      <button type="button" id="cancel-reply" class="font-bold hover:underline">Cancel</button>
+      <input type="hidden" id="replyToId" />
+    </div>
+
+    <div class="flex flex-col gap-1.5">
+      <label for="content" class="text-xs font-bold text-50 ml-1 uppercase">Comment *</label>
+      <textarea id="content" required placeholder="What's on your mind? (HTML allowed)" 
+        class="w-full h-32 px-4 py-3 rounded-xl bg-white/50 dark:bg-black/20 border border-black/10 dark:border-white/10 focus:border-[var(--primary)] outline-none transition text-90 resize-none"></textarea>
+    </div>
+
+    <div id="form-status" class="hidden my-2 p-4 rounded-xl text-sm font-bold border transition-all">
+      <p id="status-message"></p>
+    </div>
+
+    <button type="submit" id="submit-btn" 
+      class="group relative flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-[var(--primary)] text-white font-bold transition-all hover:scale-[1.02] active:scale-[0.98] shadow-lg shadow-[var(--primary)]/20 disabled:opacity-50 disabled:pointer-events-none">
+      <span id="btn-text">Send Comment</span>
+      <svg id="btn-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="group-hover:translate-x-1 transition-transform"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+    </button>
+  </form>
+</div>
+
+<script is:inline define:vars={{ slug }}>
+  console.log("ManualCommentForm initialized for slug:", slug);
+
+  const form = document.getElementById('manual-comment-form');
+  const replyIndicator = document.getElementById('reply-indicator');
+  const replyText = document.getElementById('reply-text');
+  const replyInput = document.getElementById('replyToId');
+  const cancelReply = document.getElementById('cancel-reply');
+  const btnText = document.getElementById('btn-text');
+  const btn = document.getElementById('submit-btn');
+  const statusDiv = document.getElementById('form-status');
+  const statusMsg = document.getElementById('status-message');
+
+  window.addEventListener('set-reply', (e) => {
+    replyInput.value = e.detail.id;
+    replyText.innerText = `Replying to: ${e.detail.id}`;
+    replyIndicator.classList.remove('hidden');
+    form.scrollIntoView({ behavior: 'smooth' });
+  });
+
+  cancelReply.addEventListener('click', () => {
+    replyInput.value = '';
+    replyIndicator.classList.add('hidden');
+  });
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    btn.disabled = true;
+    btnText.innerText = "Syncing to GitHub...";
+    statusDiv.classList.add('hidden'); 
+
+    const payload = {
+      username: document.getElementById('username').value,
+      userUrl: document.getElementById('userUrl').value,
+      content: document.getElementById('content').value,
+      replyToId: replyInput.value,
+      postPath: window.location.pathname,
+      honeypot: document.getElementById('fax_number').value
+    };
+
+    try {
+      const response = await fetch('/.netlify/functions/submit-comment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (response.ok) {
+        statusDiv.className = "my-2 p-4 rounded-xl text-sm font-bold border border-green-500/30 bg-green-500/10 text-green-600 dark:text-green-400";
+        statusMsg.innerText = "✨ Success! Your comment is saved. It will appear after the next site rebuild (1-2 mins).";
+        statusDiv.classList.remove('hidden');
+        form.reset();
+        replyIndicator.classList.add('hidden');
+      } else {
+        throw new Error();
+      }
+    } catch (err) {
+      statusDiv.className = "my-2 p-4 rounded-xl text-sm font-bold border border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400";
+      statusMsg.innerText = "❌ Post failed. Please check your connection or try again.";
+      statusDiv.classList.remove('hidden');
+    } finally {
+      btn.disabled = false;
+      btnText.innerText = "Send Comment";
+    }
+  });
+</script>
+
+
+<style>
+  /* 1. Hides the honeypot field from humans and screen readers */
+  .hidden {
+    display: none !important;
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  /* 2. Optional: Add a subtle focus ring to your inputs to match Fuwari's vibe */
+  input:focus, textarea:focus {
+    box-shadow: 0 0 0 2px var(--primary-transparent);
+  }
+
+  /* 3. Ensure the status message animates in smoothly */
+  #form-status:not(.hidden) {
+    animation: slideIn 0.3s ease-out;
+  }
+
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+</style>
