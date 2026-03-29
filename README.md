@@ -1,4 +1,4 @@
-Please read this blog post to understand how this project and these files were put together. 
+**This version contains the generalized author names and a flat comment structure. This does not have the "serverless" netlify function of submitting comments via the form and applying it to your repo, you have to paste in comments not from fediverse manually. **
 
 These are only the files needed to make the Astro Static Comments function work, in the context of my Astro blog theme Fuwari.
 
