@@ -1,7 +1,9 @@
 ---
 // src/components/MastodonComments.astro
+import CommentCard from "./CommentCard.astro";
 import fs from 'node:fs';
 import path from 'node:path';
+
 import { Icon } from "astro-icon/components"; // Add this if using astro-icon
 
 interface Props {
@@ -69,12 +71,31 @@ try {
   console.error("Mastodon Fetch Error - using local JSON:", e);
 }
 
-// 5. MERGE AND SORT ALL COMMENTS
-// This combines both sources and sorts them so the oldest is first (typical thread order)
-// Change to (b - a) if you want newest at the top
-const allComments = [...manualComments, ...mastodonComments].sort((a, b) => 
+// 5. MERGE AND NEST COMMENTS
+const rawComments = [...manualComments, ...mastodonComments].sort((a, b) => 
   new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
 );
+
+function buildCommentTree(flatComments: any[]) {
+  const map = new Map();
+  const roots: any[] = [];
+
+  flatComments.forEach(c => map.set(c.id, { ...c, children: [] }));
+
+  flatComments.forEach(c => {
+    const comment = map.get(c.id);
+    const parentId = c.in_reply_to_id || c.parentId; // Support both fedi and manual
+
+    if (parentId && map.has(parentId)) {
+      map.get(parentId).children.push(comment);
+    } else {
+      roots.push(comment);
+    }
+  });
+  return roots;
+}
+
+const threadedComments = buildCommentTree(rawComments);
 
 const formatDate = (dateString: string) => {
   return new Date(dateString).toLocaleDateString("en-US", {
@@ -85,6 +106,7 @@ const formatDate = (dateString: string) => {
     minute: "2-digit",
   });
 };
+
 ---
 
 <div class="mastodon-comments-container mt-10">
@@ -99,8 +121,8 @@ const formatDate = (dateString: string) => {
       <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="flex-shrink-0 mt-0.5 opacity-70"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
       <p>
         Comments are fetched from the Fediverse. You can join the conversation by replying to 
-        <a href={`https://${instanceUrl}/@${authorUsername}/${statusId}`} class="text-[var(--primary)] hover:underline not-italic font-bold"> this post</a> 
-        on Mastodon. New replies will appear here after the next site rebuild. If you don't have a fedi account, you can send me your comment <a href={`https://pomnavi.net/#contact`} class="text-[var(--primary)] hover:underline not-italic font-bold"> here</a>.
+        <a href={`https://${instanceUrl}/@${authorUsername}/${statusId}?view=full`} class="text-[var(--primary)] hover:underline not-italic font-bold"> this post</a> 
+        on Hollo. New replies will appear here after the next site rebuild. If you don't have a fedi account, you can send me your comment <a href={`#guestcomment`} class="text-[var(--primary)] hover:underline not-italic font-bold"> below</a>.
       </p>
     </div>
     
@@ -122,92 +144,17 @@ const formatDate = (dateString: string) => {
     </div>
   </div>
 
+
   <div class="space-y-4">
-    {allComments.length > 0 ? (
-      allComments.map((comment) => (
-        <div class="comment-card p-5 rounded-[var(--radius-large)] bg-black/[0.03] dark:bg-white/[0.05] border border-black/5 dark:border-white/5 shadow-sm">
-          <header class="flex justify-between items-start mb-3">
-              <div class="flex items-center gap-3">
-                <img 
-                  src={comment.account.avatar_static} 
-                  class="w-10 h-10 rounded-xl border border-black/10 dark:border-white/10" 
-                  alt="" 
-                />
-                <div class="flex flex-col">
-                  <div class="flex items-center gap-2">
-                    <a href={comment.account.url} target="_blank" class="font-bold text-90 hover:text-[var(--primary)] transition">
-                      {comment.account.display_name}
-                    </a>
-                    
-                    {/* Author Badge */}
-                    {comment.account.username === authorUsername && (
-                      <span class="text-[0.6rem] px-1.5 py-0.5 rounded-md bg-[var(--primary)] text-white font-bold uppercase tracking-wider">Author</span>
-                    )}
-                    
-                    {/* Manual Icon */}
-                    {comment.is_manual && (
-                      <div title="Manual Entry" class="text-30 opacity-60 flex items-center">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                          <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path>
-                          <circle cx="12" cy="7" r="4"></circle>
-                        </svg>
-                      </div>
-                    )}
-                  </div> { /* End of Name + Badges row */ }
-                  <span class="text-[0.75rem] text-50">@{comment.account.acct}</span>
-                </div>
-              </div> { /* End of Left-Side container */ }
-              
-              { /* This link will now be pushed to the right side */ }
-              <a href={comment.url} target="_blank" class="text-[0.75rem] text-30 hover:underline shrink-0">
-                {formatDate(comment.created_at)}
-              </a>
-            </header>
-
-          <div class="prose-sm text-70 break-words mastodon-content ml-13" set:html={comment.content} />
-
-          {comment.media_attachments && comment.media_attachments.length > 0 && (
-            <div class="mt-3 ml-13 flex flex-wrap gap-2">
-              {comment.media_attachments.map((media) => (
-                media.type === 'image' && (
-                  <a 
-                    href={media.url} 
-                    target="_blank" 
-                    rel="noopener noreferrer" 
-                    class="group relative inline-block overflow-hidden rounded-lg border border-black/10 dark:border-white/10"
-                  >
-                    <img 
-                      src={media.preview_url} 
-                      alt={media.description || "Mastodon attachment"} 
-                      class="max-h-64 w-auto object-cover transition-transform duration-300 group-hover:scale-105"
-                      loading="lazy"
-                    />
-                    {media.description && <div class="sr-only">{media.description}</div>}
-                  </a>
-                )
-              ))}
-            </div>
-          )}
-
-          {(comment.favourites_count > 0 || comment.reblogs_count > 0) && (
-            <div class="mt-3 ml-13 flex gap-4 text-[0.7rem] text-30">
-              {comment.reblogs_count > 0 && (
-                <span class="flex items-center gap-1">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg>
-                  {comment.reblogs_count}
-                </span>
-              )}
-              {(comment.favourites_count > 0 || comment.favorites_count > 0) && (
-                <span class="flex items-center gap-1">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
-                  {comment.favourites_count || comment.favorites_count}
-                </span>
-              )}
-            </div>
-          )}
-        </div>
+      {threadedComments.length > 0 ? (
+    threadedComments.map((comment) => (
+      <CommentCard 
+        comment={comment} 
+        authorUsername={authorUsername} 
+        depth={0} 
+      />
       ))
-    ) : (
+      ) : (
       <div class="text-center py-10 rounded-[var(--radius-large)] border-2 border-dashed border-black/5 dark:border-white/5 text-50">
           No comments yet.
       </div>
@@ -215,7 +162,7 @@ const formatDate = (dateString: string) => {
   </div>
 
   <div class="mt-8 flex justify-center">
-    <a href={`https://${instanceUrl}/@${authorUsername}/${statusId}`} target="_blank" 
+    <a href={`https://${instanceUrl}/@${authorUsername}/${statusId}?view=full`} target="_blank" 
        class="btn-regular px-8 py-3 rounded-xl bg-[var(--primary)] text-white font-bold transition hover:scale-105 active:scale-95 shadow-lg shadow-[var(--primary)]/20">
       Join the conversation
     </a>
