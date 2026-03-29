@@ -1,0 +1,170 @@
+---
+// src/components/CommentCard.astro
+interface Props {
+  comment: any;
+  authorUsername: string;
+  depth: number;
+  maxDepth?: number;
+}
+
+const { comment, authorUsername, depth, maxDepth = 3 } = Astro.props;
+
+
+
+const formatDate = (dateString: string) => {
+  return new Date(dateString).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
+
+// Only apply nesting styles if we are below the max depth
+const isRoot = depth === 0;
+const canIndent = depth > 0 && depth <= maxDepth;
+
+// New: Detect if we are "flat" (at or past max depth)
+const isFlatReply = depth > maxDepth;
+
+// Dynamic classes for the container
+const containerClasses = [
+  "comment-thread-container",
+  "relative",
+  !isRoot ? "mt-4" : "mt-8",
+  canIndent ? "ml-4 md:ml-10" : "" // Indentation happens HERE
+].join(" ");
+---
+
+<div class={containerClasses}>
+  {/* The Connector Line: Only show if we are nested */}
+  {canIndent && (
+    <div class="absolute -left-4 md:-left-6 top-0 bottom-0 w-0.5 bg-black/5 dark:bg-white/10 rounded-full transition-colors duration-300 thread-line"></div>
+  )}
+
+  <div class="comment-card p-5 rounded-[var(--radius-large)] bg-black/[0.03] dark:bg-white/[0.05] border border-black/5 dark:border-white/5 shadow-sm">
+    <header class="flex justify-between items-start mb-3">
+      <div class="flex items-center gap-3">
+        <img 
+          src={comment.account.avatar_static} 
+          class="w-10 h-10 rounded-xl border border-black/10 dark:border-white/10" 
+          alt="" 
+        />
+        <div class="flex flex-col">
+          <div class="flex items-center gap-2">
+            <a href={comment.account.url} target="_blank" class="font-bold text-90 hover:text-[var(--primary)] transition">
+              {comment.account.display_name}
+            </a>
+
+
+            {/* Author Badge */}
+            {comment.account.username === authorUsername && (
+              <span class="text-[0.6rem] px-1.5 py-0.5 rounded-md bg-[var(--primary)] text-white font-bold uppercase tracking-wider">Author</span>
+            )}
+
+
+            {/* Manual Icon */}
+            {comment.is_manual && (
+              <div title="Manual Entry" class="text-30 opacity-60 flex items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path>
+                  <circle cx="12" cy="7" r="4"></circle>
+                </svg>
+              </div>
+            )}
+          </div> { /* End of Name + Badges row */ }
+          <span class="text-[0.75rem] text-50">@{comment.account.acct}</span>
+        </div>
+      </div>{ /* End of Left-Side container */ }
+
+
+      { /* This link will now be pushed to the right side */ }
+      <div class="flex flex-col items-end gap-1">
+        <a href={comment.url} target="_blank" class="text-[0.75rem] text-30 hover:underline shrink-0">
+          {formatDate(comment.created_at)}
+        </a>
+
+        <button 
+          class="text-[0.7rem] font-bold text-[var(--primary)] hover:underline transition opacity-80 hover:opacity-100"
+          onclick={`window.dispatchEvent(new CustomEvent('set-reply', { detail: { id: '${comment.id}' } }))`}
+        >
+          Reply
+        </button>
+      </div>
+    </header>
+
+    {/* NEW: Context badge for deep threads */}
+    {isFlatReply && comment.in_reply_to_account_id && (
+      <div class="ml-13 mb-2 flex items-center gap-1.5 text-[0.7rem] text-50 opacity-70">
+        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 17L4 12L9 7"></path><path d="M20 18V12C20 10.3431 18.6569 9 17 9H4"></path></svg>
+        <span>Replying to</span>
+        <span class="font-bold text-[var(--primary)]">@{comment.mentions?.[0]?.username || 'author'}</span>
+      </div>
+    )}
+
+    <div class="prose-sm text-70 break-words mastodon-content ml-13" set:html={comment.content} />
+
+    {comment.media_attachments && comment.media_attachments.length > 0 && (
+      <div class="mt-3 ml-13 flex flex-wrap gap-2">
+        {comment.media_attachments.map((media: any) => (
+          media.type === 'image' && (
+            <a 
+              href={media.url} 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              class="group relative inline-block overflow-hidden rounded-lg border border-black/10 dark:border-white/10"
+            >
+              <img 
+                src={media.preview_url} 
+                alt={media.description || "Mastodon attachment"} 
+                class="max-h-64 w-auto object-cover transition-transform duration-300 group-hover:scale-105"
+                loading="lazy"
+              />
+            </a>
+          )
+        ))}
+      </div>
+    )}
+
+    {(comment.favourites_count > 0 || comment.reblogs_count > 0 || comment.favorites_count > 0) && (
+      <div class="mt-3 ml-13 flex gap-4 text-[0.7rem] text-30">
+        {comment.reblogs_count > 0 && (
+          <span class="flex items-center gap-1">
+            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg>
+            {comment.reblogs_count}
+          </span>
+        )}
+        {(comment.favourites_count > 0 || comment.favorites_count > 0) && (
+          <span class="flex items-center gap-1">
+            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
+            {comment.favourites_count || comment.favorites_count}
+          </span>
+        )}
+      </div>
+    )}
+  </div>
+
+  {/* Recursive call for nested replies */}
+  {comment.children && comment.children.length > 0 && (
+    <div class="replies">
+      {comment.children.map((child: any) => (
+        <Astro.self 
+          comment={child} 
+          authorUsername={authorUsername} 
+          depth={depth + 1} 
+          maxDepth={maxDepth} 
+        />
+      ))}
+    </div>
+  )}
+</div>
+
+
+<style>
+  /* When the user hovers over the container, light up the connector line */
+  .comment-thread-container:hover > .thread-line {
+    background-color: var(--primary) !important;
+    opacity: 0.8;
+  }
+</style>
